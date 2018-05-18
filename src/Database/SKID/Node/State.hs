@@ -3,30 +3,48 @@
 --  peers.
 
 module Database.SKID.Node.State
-    ( State
+    (  -- * State
+      State
     , mkState
+      -- * Operations on the state's peers.
     , getPeers
     , addPeer
     , removePeer
+      -- * Operations on the state's key-value pairs.
+    , get
+    , put
     )
 where
 
-import           Control.Concurrent.STM      (atomically)
-import           Control.Concurrent.STM.TVar (TVar, modifyTVar', newTVarIO,
-                                              readTVarIO)
-import           Control.Distributed.Process (ProcessId)
-import           Control.Monad.IO.Class      (MonadIO, liftIO)
-import           Data.Set                    (Set)
-import qualified Data.Set                    as Set
+import           Control.Concurrent.STM        (atomically)
+import           Control.Concurrent.STM.TQueue (TQueue, newTQueueIO)
+import           Control.Concurrent.STM.TVar   (TVar, modifyTVar', newTVarIO,
+                                                readTVarIO)
+import           Control.Distributed.Process   (ProcessId)
+import           Control.Monad.IO.Class        (MonadIO, liftIO)
+import           Data.ByteString               (ByteString)
+import           Data.Map.Strict               (Map)
+import qualified Data.Map.Strict               as Map
+import           Data.Set                      (Set)
+import qualified Data.Set                      as Set
 
 -- | State of a node.
 data State = State
-    {  -- | Set of peers known so far.
-       peers :: TVar (Set ProcessId)
+    { -- | Set of peers known so far.
+      peers :: TVar (Set ProcessId)
+      -- | In memory key-value store for the node.
+    , kvMap :: TVar (Map Key Value)
+      -- | Queue of key-values that have to be set to the peers.
+    , sendQ :: TQueue (Key, Value)
     }
+
+type Key = ByteString
+type Value = ByteString
 
 mkState :: IO State
 mkState = State <$> newTVarIO (Set.empty)
+                <*> newTVarIO (Map.empty)
+                <*> newTQueueIO
 
 -- | Get set of the peers known so far.
 getPeers :: MonadIO m => State -> m (Set ProcessId)
@@ -42,3 +60,12 @@ addPeer st pId = liftIO $ atomically $
 removePeer :: MonadIO m => State -> ProcessId -> m ()
 removePeer st pId = liftIO $ atomically $
     modifyTVar' (peers st) (pId `Set.delete`)
+
+-- | Get the given key.
+get :: MonadIO m => State -> Key -> m (Maybe Value)
+get st k = fmap (Map.lookup k) $ liftIO $ readTVarIO (kvMap st)
+
+-- | Put the given key with the given value to the state.
+put :: MonadIO m => State -> Key -> Value -> m ()
+put st k v = liftIO $ atomically $
+    modifyTVar' (kvMap st) (Map.insert k v)

@@ -36,7 +36,9 @@ library:
   - distributed-process-simplelocalnet
   - containers
   - binary
-
+  - bytestring
+  - text
+  
 executables:
   skid:
     main: Main.hs
