@@ -21,12 +21,14 @@ import           Control.Distributed.Process                        (Process,
                                                                      receiveWait,
                                                                      register,
                                                                      say, send,
+                                                                     spawnLocal,
                                                                      whereisRemoteAsync)
 import           Control.Distributed.Process.Backend.SimpleLocalnet (findPeers, initializeBackend,
                                                                      newLocalNode)
 import           Control.Distributed.Process.Node                   (initRemoteTable,
                                                                      runProcess)
-import           Control.Monad                                      (forever)
+import           Control.Monad                                      (forever,
+                                                                     void)
 import           Control.Monad.IO.Class                             (liftIO)
 import           Data.Binary                                        (Binary)
 import           Data.Foldable                                      (traverse_)
@@ -35,8 +37,13 @@ import           GHC.Generics                                       (Generic)
 import           Network.Socket                                     (HostName,
                                                                      ServiceName)
 
-import           Database.SKID.Node.State                           (State,
+import           Database.SKID.Node.State                           (Key, PutType (Remote),
+                                                                     State,
+                                                                     Value,
                                                                      addPeer,
+                                                                     getNextKV,
+                                                                     getPeers,
+                                                                     put,
                                                                      removePeer)
 
 -- | Start a node asynchronously.
@@ -53,10 +60,13 @@ runNode host port st = async $ do
         register skidProc myPId
         -- Ask to the peers where the other skid processes are.
         traverse_ (`whereisRemoteAsync` skidProc) peers
+        -- Spawn the process that updates the other nodes upon 'PUT' commands
+        void $ spawnLocal updater
         -- Keep on waiting for the messages that are sent to this process.
         forever $ receiveWait [ match handleWhereIsReply
                               , match handleHello
                               , match handleMonitorNotification
+                              , match handleUpdate
                               , matchAny $ \msg -> say $
                                   "Message not handled: " ++ show msg
                               ]
@@ -93,8 +103,26 @@ runNode host port st = async $ do
       handleMonitorNotification (ProcessMonitorNotification _ pId _) =
           removePeer st pId
 
+      -- | Handle updates in the key-value map originated by a peer.
+      handleUpdate :: Update -> Process ()
+      handleUpdate (Update k v) = put st Remote k v
+
+      -- | Process that listens on the queue of key-values, and send updates as
+      -- new values are put there.
+      updater :: Process ()
+      updater = forever $ do
+          (k, v) <- getNextKV st
+          peers  <- getPeers st
+          traverse_ (`send` (Update k v)) peers
+
 -- | Message that skid-processes send when they boot up.
 data Hello = Hello ProcessId
     deriving (Typeable, Generic)
 
 instance Binary Hello
+
+-- | Message that signals a new PUT operation took place at a node.
+data Update = Update Key Value
+    deriving (Typeable, Generic)
+
+instance Binary Update

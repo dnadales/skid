@@ -16,7 +16,8 @@ import           System.Console.Haskeline (InputT, autoAddHistory,
 import           System.Directory         (getHomeDirectory)
 import           System.FilePath          ((</>))
 
-import           Database.SKID.Node.State (State, get, getPeers, put)
+import           Database.SKID.Node.State (PutType (Local), State, get,
+                                           getPeers, put)
 
 runREPL :: State -> IO ()
 runREPL st = do
@@ -49,7 +50,7 @@ runREPL st = do
           maybe (outputStrLn "Key not found") (outputStrLn . show) mv
           return True
       dispatch ["put", k, v] = do
-          put st (encode k) (encode v)
+          put st Local (encode k) (encode v)
           return True
       dispatch x = do
           outputStrLn $ "Unknown command: " ++ show x
