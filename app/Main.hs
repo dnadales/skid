@@ -3,14 +3,18 @@
 -- | Entry point for 'skid'.
 module Main where
 
-import           Control.Monad         (unless, when)
-import           System.Console.Docopt (Arguments, Docopt, docopt,
-                                        exitWithUsage, getArgWithDefault,
-                                        isPresent, longOption, parseArgsOrExit)
-import           System.Environment    (getArgs)
-import           Text.Read             (readEither)
+import           Control.Concurrent.Async (wait)
+import           Control.Monad            (unless, when)
+import           System.Console.Docopt    (Arguments, Docopt, docopt,
+                                           exitWithUsage, getArgWithDefault,
+                                           isPresent, longOption,
+                                           parseArgsOrExit)
+import           System.Environment       (getArgs)
+import           Text.Read                (readEither)
 
-import           Database.SKID.REPL    (runREPL)
+import           Database.SKID.Node       (runNode)
+import           Database.SKID.Node.State (mkState)
+import           Database.SKID.REPL       (runREPL)
 
 patterns :: Docopt
 patterns = [docopt|
@@ -42,10 +46,13 @@ maxPortValue = 65535
 
 main :: IO ()
 main = do
-    args <- parseArgsOrExit patterns =<< getArgs
-    port <- getPort args
-    putStrLn "TODO: start the node"
-    when (args `isPresent` longOption "interactive") runREPL
+    args  <- parseArgsOrExit patterns =<< getArgs
+    port  <- getPort args
+    st    <- mkState
+    aNode <- runNode defaultHost port st
+    when (args `isPresent` longOption "interactive") (runREPL st)
+    -- When the REPL exits, the node will continue running.
+    wait aNode
     where
       getPort :: Arguments -> IO String
       getPort args = do

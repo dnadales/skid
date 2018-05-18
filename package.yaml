@@ -13,7 +13,8 @@ description:         Please see the README on GitHub at <https://github.com/capi
 
 dependencies:
 - base >= 4.7 && < 5
-
+- async
+  
 ghc-options:
 - -Wall
 - -Wcompat
@@ -28,6 +29,12 @@ library:
   - haskeline
   - directory
   - filepath
+  - stm
+  - network
+  - distributed-process
+  - network-transport-tcp
+  - distributed-process-simplelocalnet
+  - containers
 
 executables:
   skid:

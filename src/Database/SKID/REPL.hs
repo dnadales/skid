@@ -5,14 +5,18 @@ module Database.SKID.REPL
 where
 
 import           Control.Monad            (when)
+import           Data.Foldable            (traverse_)
+import qualified Data.Set                 as Set
 import           System.Console.Haskeline (InputT, autoAddHistory,
                                            defaultSettings, getInputLine,
                                            historyFile, outputStrLn, runInputT)
 import           System.Directory         (getHomeDirectory)
 import           System.FilePath          ((</>))
 
-runREPL :: IO ()
-runREPL = do
+import           Database.SKID.Node.State (State, getPeers)
+
+runREPL :: State -> IO ()
+runREPL st = do
     home <- getHomeDirectory
     runInputT (haskelineSettings home) loop
     where
@@ -34,7 +38,8 @@ runREPL = do
       dispatch ["q"] = return False
       dispatch ["quit"] = return False
       dispatch ["peers"] = do
-          outputStrLn "TODO: implement 'peers'"
+          ns <- getPeers st
+          traverse_ (outputStrLn . show) (Set.toList ns)
           return True
       dispatch ["get", k] = do
           outputStrLn "TODO: implement 'get'"
