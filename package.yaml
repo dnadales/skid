@@ -35,6 +35,7 @@ library:
   - network-transport-tcp
   - distributed-process-simplelocalnet
   - containers
+  - binary
 
 executables:
   skid:
