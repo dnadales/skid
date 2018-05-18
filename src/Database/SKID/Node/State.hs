@@ -16,8 +16,13 @@ module Database.SKID.Node.State
     , Value
     , get
     , put
+    , mergeKVs
+    , localMap
       -- * Operations on the queue of to-send key-value pairs
     , getNextKV
+      -- * Operations on the bootstrapped state.
+    , isBootstrapped
+    , markBootrsapped
     )
 where
 
@@ -25,7 +30,7 @@ import           Control.Concurrent.STM        (atomically)
 import           Control.Concurrent.STM.TQueue (TQueue, newTQueueIO, readTQueue,
                                                 writeTQueue)
 import           Control.Concurrent.STM.TVar   (TVar, modifyTVar', newTVarIO,
-                                                readTVarIO)
+                                                readTVarIO, writeTVar)
 import           Control.Distributed.Process   (ProcessId)
 import           Control.Monad                 (when)
 import           Control.Monad.IO.Class        (MonadIO, liftIO)
@@ -43,15 +48,18 @@ data State = State
     , kvMap :: TVar (Map Key Value)
       -- | Queue of key-values that have to be set to the peers.
     , sendQ :: TQueue (Key, Value)
+      -- | Is the node initialized?
+    , initT :: TVar Bool
     }
 
 type Key = ByteString
 type Value = ByteString
 
 mkState :: IO State
-mkState = State <$> newTVarIO (Set.empty)
-                <*> newTVarIO (Map.empty)
+mkState = State <$> newTVarIO Set.empty
+                <*> newTVarIO Map.empty
                 <*> newTQueueIO
+                <*> newTVarIO False
 
 -- | Get set of the peers known so far.
 getPeers :: MonadIO m => State -> m (Set ProcessId)
@@ -94,3 +102,28 @@ data PutType = Local | Remote deriving (Eq)
 getNextKV :: MonadIO m => State -> m (Key, Value)
 getNextKV st = liftIO $ atomically $
     readTQueue (sendQ st)
+
+-- | Is the node bootstraped?
+--
+-- A node is considered to be bootstrapped if either no peers are found after a
+-- certain period of time, or the global key-value map was received from one of
+-- the peers.
+isBootstrapped :: MonadIO m => State -> m Bool
+isBootstrapped st = liftIO $
+    readTVarIO (initT st)
+
+-- | Mark the node as bootstrapped.
+markBootrsapped :: MonadIO m => State -> m ()
+markBootrsapped st = liftIO $ atomically $
+    writeTVar (initT st) True
+
+-- | Merge the given key-value pairs with the local ones. The key-value pairs
+-- will overwrite the local versions.
+mergeKVs :: MonadIO m => State -> Map Key Value -> m ()
+mergeKVs st mm = liftIO $ atomically $
+    modifyTVar' (kvMap st) (Map.union mm)
+
+-- | Return the internal key-value map.
+localMap :: MonadIO m => State -> m (Map Key Value)
+localMap st = liftIO $
+    readTVarIO (kvMap st)

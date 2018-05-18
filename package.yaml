@@ -38,7 +38,8 @@ library:
   - binary
   - bytestring
   - text
-  
+  - random
+
 executables:
   skid:
     main: Main.hs

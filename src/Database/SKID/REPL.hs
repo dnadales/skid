@@ -47,7 +47,7 @@ runREPL st = do
           return True
       dispatch ["get", k] = do
           mv <- get st (encode k)
-          maybe (outputStrLn "Key not found") (outputStrLn . show) mv
+          outputStrLn $ maybe "Key not found" show mv
           return True
       dispatch ["put", k, v] = do
           put st Local (encode k) (encode v)
