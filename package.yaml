@@ -24,6 +24,10 @@ ghc-options:
 
 library:
   source-dirs: src
+  dependencies:
+  - haskeline
+  - directory
+  - filepath
 
 executables:
   skid:

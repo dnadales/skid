@@ -10,6 +10,8 @@ import           System.Console.Docopt (Arguments, Docopt, docopt,
 import           System.Environment    (getArgs)
 import           Text.Read             (readEither)
 
+import           Database.SKID.REPL    (runREPL)
+
 patterns :: Docopt
 patterns = [docopt|
 skid
@@ -43,7 +45,7 @@ main = do
     args <- parseArgsOrExit patterns =<< getArgs
     port <- getPort args
     putStrLn "TODO: start the node"
-    when (args `isPresent` longOption "interactive") (putStrLn "TODO: Start the REPL")
+    when (args `isPresent` longOption "interactive") runREPL
     where
       getPort :: Arguments -> IO String
       getPort args = do
